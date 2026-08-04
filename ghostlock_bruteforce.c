@@ -62,9 +62,9 @@
 /* ================================================================
  * KASLR Bruteforce state file
  * ================================================================ */
-#define SLIDE_STATE_FILE "/sdcard/slide_state"
-#define SLIDE_WIN_FILE   "/sdcard/slide_win"
-#define LOG_FILE         "/sdcard/ghostlock_log.txt"
+#define SLIDE_STATE_FILE "/data/local/tmp/slide_state"
+#define SLIDE_WIN_FILE   "/data/local/tmp/slide_win"
+#define LOG_FILE         "/data/local/tmp/ghostlock_log.txt"
 
 /* Time-stamped logging — writes to both stderr and LOG_FILE */
 static FILE *g_log_fp = NULL;
