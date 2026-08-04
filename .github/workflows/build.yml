@@ -1,0 +1,26 @@
+name: Build GhostLock preload.so (Honor AAK-AN00)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: exploit
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build preload.so
+        run: make PROJECT=AAK-AN00
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preload-aak-an00
+          path: exploit/build/AAK-AN00/bin/preload.so
+      - name: Show sha256
+        run: sha256sum build/AAK-AN00/bin/preload.so
