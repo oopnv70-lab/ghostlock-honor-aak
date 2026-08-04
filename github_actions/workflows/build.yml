@@ -1,0 +1,46 @@
+name: Build GhostLock preload.so (Honor AAK-AN00)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: exploit
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Android NDK r29
+        id: ndk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/android-ndk-cache/android-ndk-r29
+          key: ndk-r29-v1
+
+      - name: Download Android NDK r29
+        if: steps.ndk-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/android-ndk-cache
+          cd ~/android-ndk-cache
+          wget -q https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+          unzip -q android-ndk-r29-linux.zip
+          rm android-ndk-r29-linux.zip
+          echo "NDK downloaded"
+
+      - name: Build preload.so
+        run: make PROJECT=AAK-AN00
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preload-aak-an00
+          path: exploit/build/AAK-AN00/bin/preload.so
+
+      - name: Show sha256
+        run: sha256sum build/AAK-AN00/bin/preload.so
