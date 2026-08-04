@@ -126,3 +126,31 @@ CI: GitHub Actions (NDK r29, ARM64 static)
 | Kernel | 6.6.89-android15 |
 | Arch | aarch64 |
 | CVE | CVE-2026-43499 (GhostLock) |
+
+
+---
+
+## 📊 Current Status
+
+| Component | Status |
+|---|---|
+| CVE Analysis | ✅ Complete — kernel 6.6.89-android15 confirmed vulnerable |
+| Static Offsets | ✅ Extracted from kernel_full.bin (Honor AAK-AN00 firmware) |
+| preload.so (exploit) | ✅ CI builds pass — artifact available |
+| ghostlock_bruteforce | ✅ CI builds pass — artifact available |
+| KASLR Slide | ❌ **Not yet bypassed** — 9-bit slide (0-511), no kallsyms/iomem/kmem leak available on Honor device |
+| Root Achieved | ❌ **Not yet** — bruteforce loop in progress |
+| Device Tested | Honor AAK-AN00 (MagicOS 10) — `/proc/kallsyms`, `/proc/iomem`, `/dev/kmem`, `/proc/config.gz` all locked |
+
+### What Works
+- Futex PI deadlock trigger (kernel UAF primitives)
+- Stack reclaim via PR_SET_MM_MAP
+- Static offset calculation for all critical kernel symbols
+
+### What's Blocking
+- Honor kernel prevents all conventional KASLR info leaks (`ro.debuggable=0`)
+- Bruteforce (512 attempts) is the only viable path — each wrong slide causes kernel crash/reboot
+- Currently iterating through slides via `ghostlock_bruteforce` with automatic state persistence
+
+### Logs
+All execution logs written to `/data/local/tmp/ghostlock_log.txt` on device.
