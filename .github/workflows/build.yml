@@ -1,5 +1,4 @@
 name: Build GhostLock preload.so (Honor AAK-AN00)
-
 on:
   push:
     branches: [main]
@@ -11,18 +10,15 @@ jobs:
     defaults:
       run:
         working-directory: exploit
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Cache Android NDK r29
         id: ndk-cache
         uses: actions/cache@v4
         with:
           path: ~/android-ndk-cache/android-ndk-r29
           key: ndk-r29-v1
-
       - name: Download Android NDK r29
         if: steps.ndk-cache.outputs.cache-hit != 'true'
         run: |
@@ -32,16 +28,13 @@ jobs:
           unzip -q android-ndk-r29-linux.zip
           rm android-ndk-r29-linux.zip
           echo "NDK downloaded"
-
       - name: Build preload.so
         run: make PROJECT=AAK-AN00
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: preload-aak-an00
           path: exploit/build/AAK-AN00/bin/preload.so
-
       - name: Show sha256
         run: sha256sum build/AAK-AN00/bin/preload.so
 
@@ -50,20 +43,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Install aarch64 cross-compiler
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq gcc-aarch64-linux-gnu
-
       - name: Build ghostlock_bruteforce
         run: |
           aarch64-linux-gnu-gcc -static -pthread -O2 -o ghostlock_bruteforce ghostlock_bruteforce.c
           aarch64-linux-gnu-strip ghostlock_bruteforce
           ls -lh ghostlock_bruteforce
-
+      - name: Build ghostlock_mini_test
+        run: |
+          aarch64-linux-gnu-gcc -static -pthread -O2 -o ghostlock_mini_test ghostlock_mini_test.c
+          aarch64-linux-gnu-strip ghostlock_mini_test
+          ls -lh ghostlock_mini_test
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghostlock-bruteforce-aak
-          path: ghostlock_bruteforce
+          path: |
+            ghostlock_bruteforce
+            ghostlock_mini_test
