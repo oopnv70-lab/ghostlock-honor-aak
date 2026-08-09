@@ -19,7 +19,14 @@ _this_dir = os.path.basename(ROOT)
 if _this_dir == "deep_analysis" and os.path.exists(os.path.join(ROOT, "hiarc.asm.xz")):
     ANALYSIS_DIR = ROOT
 else:
-    ANALYSIS_DIR = os.path.join(ROOT, "analysis-full_10", "deep_analysis")
+    # Try analysis-full_12 first, fallback to analysis-full_10
+    for candidate in ["analysis-full_12", "analysis-full_10"]:
+        candidate_path = os.path.join(ROOT, candidate, "deep_analysis")
+        if os.path.exists(candidate_path):
+            ANALYSIS_DIR = candidate_path
+            break
+    else:
+        ANALYSIS_DIR = os.path.join(ROOT, "analysis-full_10", "deep_analysis")
 
 # ─── helpers ───
 def read_file_xz(path):
@@ -152,7 +159,50 @@ def analyze_tmf8805():
 
     return res
 
-# ─── 3. aw_haptic_nv analysis ───
+# ─── 3.5 tmf8806_dtof (tmf8805 sibling) ───
+def analyze_tmf8806():
+    res = {}
+    asm = read_file_xz(os.path.join(ANALYSIS_DIR, "tmf8806_dtof.asm.xz"))
+    if not asm:
+        res["error"] = "tmf8806_dtof.asm.xz not found"
+        return res
+
+    # Check store functions
+    for fn in ["program_store", "app0_histogram_readout_store", "app0_osc_trim_store",
+               "data_setting_store", "snr_store"]:
+        m = re.search(rf'<{fn}>:\s*\n((?:\s+[0-9a-f]+:.*\n)+)', asm)
+        if m:
+            body = m.group(1)
+            has_sscanf = "sscanf" in body
+            has_i2c = "i2c" in body.lower()
+            res[fn] = {
+                "instructions": len([l for l in body.split("\n") if l.strip()]),
+                "sscanf": has_sscanf,
+                "i2c_call": has_i2c,
+                "comment": "tmf8806 I2C store function"
+            }
+    return res
+
+# ─── 3.6 hertz (Hertz MCU) ───
+def analyze_hertz():
+    res = {}
+    asm = read_file_xz(os.path.join(ANALYSIS_DIR, "hertz.asm.xz"))
+    if not asm:
+        res["error"] = "hertz.asm.xz not found"
+        return res
+
+    for fn in ["read_write_byte_store", "project_properties_store"]:
+        m = re.search(rf'<{fn}>:\s*\n((?:\s+[0-9a-f]+:.*\n)+)', asm)
+        if m:
+            body = m.group(1)
+            res[fn] = {
+                "instructions": len([l for l in body.split("\n") if l.strip()]),
+                "uart_access": "uart" in body.lower(),
+                "i2c_access": "i2c" in body.lower(),
+                "sscanf": "sscanf" in body,
+                "comment": "Hertz MCU interface function"
+            }
+    return res
 def analyze_aw_haptic():
     res = {}
     asm = read_file_xz(os.path.join(ANALYSIS_DIR, "aw_haptic_nv.asm.xz"))
@@ -176,7 +226,7 @@ def analyze_aw_haptic():
     return res
 
 # ─── 4. Overall assessment ───
-def build_assessment(hiarc, tmf8805, aw_haptic):
+def build_assessment(hiarc, tmf8805, tmf8806, aw_haptic, hertz):
     vulns = []
 
     # HIARC: GPIO store zero-check
@@ -246,6 +296,28 @@ def build_assessment(hiarc, tmf8805, aw_haptic):
             "instructions": node["instructions"]
         })
 
+    # tmf8806 I2C
+    for fn, node in tmf8806.items():
+        if fn.endswith("_store"):
+            vulns.append({
+                "module": "tmf8806_dtof.ko",
+                "function": fn,
+                "threat": "tmf8806 I2C store — potential unvalidated register write",
+                "severity": "HIGH" if node.get("i2c_call") else "MEDIUM",
+                "instructions": node["instructions"]
+            })
+
+    # hertz MCU
+    for fn, node in hertz.items():
+        if fn.endswith("_store"):
+            vulns.append({
+                "module": "hertz.ko",
+                "function": fn,
+                "threat": f"Hertz MCU interface — {node.get('comment','')}",
+                "severity": "HIGH" if node.get("uart_access") else "MEDIUM",
+                "instructions": node["instructions"]
+            })
+
     return {"total_vulns": len(vulns), "vulnerabilities": vulns}
 
 
@@ -256,12 +328,16 @@ def main():
 
     hiarc = analyze_hiarc()
     tmf8805 = analyze_tmf8805()
+    tmf8806 = analyze_tmf8806()
     aw_haptic = analyze_aw_haptic()
-    assessment = build_assessment(hiarc, tmf8805, aw_haptic)
+    hertz = analyze_hertz()
+    assessment = build_assessment(hiarc, tmf8805, tmf8806, aw_haptic, hertz)
 
     OUTPUT["hiarc"] = hiarc
     OUTPUT["tmf8805"] = tmf8805
+    OUTPUT["tmf8806"] = tmf8806
     OUTPUT["aw_haptic"] = aw_haptic
+    OUTPUT["hertz"] = hertz
     OUTPUT["assessment"] = assessment
 
     out_path = os.path.join(ANALYSIS_DIR, "deep_trace_output_v2.json")
